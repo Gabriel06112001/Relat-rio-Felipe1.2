@@ -1,4 +1,5 @@
 {
+  "name": "relatorio-cap-semana12",
   "buildCommand": "npm run build",
   "outputDirectory": "output",
   "installCommand": "npm install"
