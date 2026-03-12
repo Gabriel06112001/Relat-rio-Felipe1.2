@@ -1203,6 +1203,8 @@ window.addEventListener('DOMContentLoaded', () => {
 </html>`;
 
 // ─── Salvar ───────────────────────────────────────────────────────
-const OUTPUT_PATH = path.join(__dirname, '..', 'output', 'index.html');
+const OUTPUT_DIR = path.join(__dirname, '..', 'output');
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+const OUTPUT_PATH = path.join(OUTPUT_DIR, 'index.html');
 fs.writeFileSync(OUTPUT_PATH, html, 'utf8');
 console.log('✅  Relatório gerado:', OUTPUT_PATH);
