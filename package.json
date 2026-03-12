@@ -1,0 +1,13 @@
+{
+  "name": "relatorio-felipe",
+  "version": "1.0.0",
+  "description": "Relatório interativo CAP Semana 12",
+  "main": "src/gerar_relatorio.js",
+  "scripts": {
+    "start": "node src/gerar_relatorio.js",
+    "gerar": "node src/gerar_relatorio.js"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}
