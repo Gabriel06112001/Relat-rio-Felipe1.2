@@ -4,10 +4,14 @@
   "description": "Relatório interativo CAP Semana 12",
   "main": "src/gerar_relatorio.js",
   "scripts": {
-    "start": "node src/gerar_relatorio.js",
-    "gerar": "node src/gerar_relatorio.js"
+    "build": "node src/gerar_relatorio.js",
+    "serve": "serve output -p 5172",
+    "dev": "node src/gerar_relatorio.js && serve output -p 5172"
   },
   "dependencies": {
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "serve": "^14.2.6"
   }
 }

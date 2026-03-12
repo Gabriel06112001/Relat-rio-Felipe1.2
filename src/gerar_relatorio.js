@@ -1203,6 +1203,6 @@ window.addEventListener('DOMContentLoaded', () => {
 </html>`;
 
 // ─── Salvar ───────────────────────────────────────────────────────
-const OUTPUT_PATH = path.join(__dirname, '..', 'output', 'relatorio_CAP_Semana12.html');
+const OUTPUT_PATH = path.join(__dirname, '..', 'output', 'index.html');
 fs.writeFileSync(OUTPUT_PATH, html, 'utf8');
 console.log('✅  Relatório gerado:', OUTPUT_PATH);
