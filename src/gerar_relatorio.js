@@ -360,6 +360,7 @@ const html = `<!DOCTYPE html>
     .dia-kpi .dia-nome  { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: rgba(255,255,255,.7); margin-bottom: 4px; }
     .dia-kpi .dia-valor { font-size: .92rem; font-weight: 700; color: #fff; line-height: 1.2; }
     .dia-kpi .dia-qtd   { font-size: .68rem; color: rgba(255,255,255,.55); margin-top: 3px; }
+    .dia-kpi .dia-atraso { font-size: .68rem; color: #fca5a5; margin-top: 3px; font-weight: 600; }
 
     /* ── Column Selector ── */
     .section-title {
@@ -849,11 +850,11 @@ const html = `<!DOCTYPE html>
       <div class="chart-header"><h3>📅 Valor Total a Pagar por Dia da Semana</h3>${typeBtns('chartDiaSemana',['bar','line','radar','polarArea'],'bar')}</div>
       <div class="chart-wrap-featured"><canvas id="chartDiaSemana"></canvas></div>
       <div class="dias-kpis" id="diasKpis">
-        <div class="dia-kpi" id="diakpi-0" onclick="openDayDetail(0)" title="Ver detalhes"><div class="dia-nome">Segunda</div><div class="dia-valor" id="dvk-0">—</div><div class="dia-qtd" id="dqk-0"></div></div>
-        <div class="dia-kpi" id="diakpi-1" onclick="openDayDetail(1)" title="Ver detalhes"><div class="dia-nome">Terça</div><div class="dia-valor" id="dvk-1">—</div><div class="dia-qtd" id="dqk-1"></div></div>
-        <div class="dia-kpi" id="diakpi-2" onclick="openDayDetail(2)" title="Ver detalhes"><div class="dia-nome">Quarta</div><div class="dia-valor" id="dvk-2">—</div><div class="dia-qtd" id="dqk-2"></div></div>
-        <div class="dia-kpi" id="diakpi-3" onclick="openDayDetail(3)" title="Ver detalhes"><div class="dia-nome">Quinta</div><div class="dia-valor" id="dvk-3">—</div><div class="dia-qtd" id="dqk-3"></div></div>
-        <div class="dia-kpi" id="diakpi-4" onclick="openDayDetail(4)" title="Ver detalhes"><div class="dia-nome">Sexta</div><div class="dia-valor" id="dvk-4">—</div><div class="dia-qtd" id="dqk-4"></div></div>
+        <div class="dia-kpi" id="diakpi-0" onclick="openDayDetail(0)" title="Ver detalhes"><div class="dia-nome">Segunda</div><div class="dia-valor" id="dvk-0">—</div><div class="dia-qtd" id="dqk-0"></div><div class="dia-atraso" id="dak-0"></div></div>
+        <div class="dia-kpi" id="diakpi-1" onclick="openDayDetail(1)" title="Ver detalhes"><div class="dia-nome">Terça</div><div class="dia-valor" id="dvk-1">—</div><div class="dia-qtd" id="dqk-1"></div><div class="dia-atraso" id="dak-1"></div></div>
+        <div class="dia-kpi" id="diakpi-2" onclick="openDayDetail(2)" title="Ver detalhes"><div class="dia-nome">Quarta</div><div class="dia-valor" id="dvk-2">—</div><div class="dia-qtd" id="dqk-2"></div><div class="dia-atraso" id="dak-2"></div></div>
+        <div class="dia-kpi" id="diakpi-3" onclick="openDayDetail(3)" title="Ver detalhes"><div class="dia-nome">Quinta</div><div class="dia-valor" id="dvk-3">—</div><div class="dia-qtd" id="dqk-3"></div><div class="dia-atraso" id="dak-3"></div></div>
+        <div class="dia-kpi" id="diakpi-4" onclick="openDayDetail(4)" title="Ver detalhes"><div class="dia-nome">Sexta</div><div class="dia-valor" id="dvk-4">—</div><div class="dia-qtd" id="dqk-4"></div><div class="dia-atraso" id="dak-4"></div></div>
       </div>
       <p class="chart-desc">Total acumulado (R$) por dia útil de vencimento. O dia com maior valor fica em destaque.</p>
     </div>
@@ -918,6 +919,14 @@ const html = `<!DOCTYPE html>
 // ── Dados ─────────────────────────────────────────────────────────
 const DADOS   = ${dadosJSON};
 const COLUNAS = ${colunasJSON};
+const HOJE_JS = '${HOJE_STR}';
+function strToDateClient(str) {
+  if (!str || typeof str !== 'string') return null;
+  const [d, m, y] = str.split('/').map(Number);
+  if (!d || !m || !y) return null;
+  return new Date(y, m - 1, d);
+}
+const hojeDate = strToDateClient(HOJE_JS);
 
 // ── ag-Grid ───────────────────────────────────────────────────────
 let gridApi;
@@ -1110,7 +1119,8 @@ function aggregateByWeekday(dateField, valueField) {
   const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
   // js getDay(): 0=Dom,1=Seg,2=Ter,3=Qua,4=Qui,5=Sex,6=Sab
   const jsToIdx = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 };
-  const totals = [0, 0, 0, 0, 0];
+  const totals         = [0, 0, 0, 0, 0];
+  const atrasadoTotals = [0, 0, 0, 0, 0];
   const counts = [0, 0, 0, 0, 0];
   const dates  = [[], [], [], [], []];
   DADOS.forEach(r => {
@@ -1130,8 +1140,11 @@ function aggregateByWeekday(dateField, valueField) {
     const effDow = effDate.getDay();
     if (effDow >= 1 && effDow <= 5) {
       const idx = jsToIdx[effDow];
-      totals[idx] += parseFloat(r[valueField]) || 0;
+      const val = parseFloat(r[valueField]) || 0;
+      totals[idx] += val;
       counts[idx] += 1;
+      // Atrasado: vencimento original <= hoje
+      if (hojeDate && date <= hojeDate) atrasadoTotals[idx] += val;
       const effD = effDate.getDate();
       const effM = effDate.getMonth() + 1;
       const effY = effDate.getFullYear();
@@ -1144,7 +1157,7 @@ function aggregateByWeekday(dateField, valueField) {
     const [db,mb,yb] = b.split('/').map(Number);
     return new Date(ya,ma-1,da) - new Date(yb,mb-1,db);
   }));
-  return { labels: DIAS, totals, counts, dates };
+  return { labels: DIAS, totals, atrasadoTotals, counts, dates };
 }
 
 // ── Build chart ───────────────────────────────────────────────────
@@ -1241,12 +1254,10 @@ function renderChart(id) {
     // Abrevia labels longos
     buildChart(id, type, e.map(x => x[0].length > 28 ? x[0].slice(0,26)+'…' : x[0]), e.map(x=>x[1]), 'Valor (R$)', 'currency');
   } else if (id === 'chartDiaSemana') {
-    const { labels, totals, counts, dates } = aggregateByWeekday('data_vencimento', 'valor');
+    const { labels, totals, atrasadoTotals, counts, dates } = aggregateByWeekday('data_vencimento', 'valor');
+    const aVencerTotals = totals.map((t, i) => t - atrasadoTotals[i]);
     const labelsRich = labels.map((d, i) => dates[i].length > 0 ? d + ' (' + dates[i].join(', ') + ')' : d);
-    // Usa cores especiais no featured: rosa para o maior, azul claro para os demais
     const maxVal = Math.max(...totals);
-    const bgColors = totals.map(v => v === maxVal ? '#2563ebcc' : '#94a3b870');
-    const bdColors = totals.map(v => v === maxVal ? '#2563eb'   : '#94a3b8');
     const type = currentChartTypes[id];
     if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
     const ctx = document.getElementById(id);
@@ -1254,34 +1265,45 @@ function renderChart(id) {
       const isRadar = type === 'radar';
       const isPolar = type === 'polarArea';
       const hasAxes = type === 'bar' || type === 'line';
-      let ds = { label: 'Total a Pagar (R$)', data: totals };
-      if (isRadar) {
-        ds.backgroundColor = '#f7258535'; ds.borderColor = '#f72585';
-        ds.borderWidth = 2; ds.pointBackgroundColor = '#f72585'; ds.fill = true;
-      } else if (type === 'line') {
-        ds.backgroundColor = '#f7258520'; ds.borderColor = '#f72585';
-        ds.borderWidth = 3; ds.fill = true; ds.tension = 0.4;
-        ds.pointBackgroundColor = '#f72585'; ds.pointRadius = 5; ds.pointHoverRadius = 7;
+      let datasets;
+      if (type === 'bar') {
+        datasets = [
+          { label: 'Atrasado', data: atrasadoTotals, backgroundColor: '#dc262699', borderColor: '#dc2626', borderWidth: 0, stack: 'stack' },
+          { label: 'A Vencer',  data: aVencerTotals,  backgroundColor: '#2563ebcc', borderColor: '#2563eb',  borderWidth: 0, stack: 'stack' },
+        ];
       } else {
-        ds.backgroundColor = bgColors; ds.borderColor = bdColors; ds.borderWidth = isPolar ? 1.5 : 0;
+        let ds = { label: 'Total a Pagar (R$)', data: totals };
+        if (isRadar) {
+          ds.backgroundColor = '#f7258535'; ds.borderColor = '#f72585';
+          ds.borderWidth = 2; ds.pointBackgroundColor = '#f72585'; ds.fill = true;
+        } else if (type === 'line') {
+          ds.backgroundColor = '#f7258520'; ds.borderColor = '#f72585';
+          ds.borderWidth = 3; ds.fill = true; ds.tension = 0.4;
+          ds.pointBackgroundColor = '#f72585'; ds.pointRadius = 5; ds.pointHoverRadius = 7;
+        } else {
+          const bgColors = totals.map(v => v === maxVal ? '#2563ebcc' : '#94a3b870');
+          const bdColors = totals.map(v => v === maxVal ? '#2563eb'   : '#94a3b8');
+          ds.backgroundColor = bgColors; ds.borderColor = bdColors; ds.borderWidth = isPolar ? 1.5 : 0;
+        }
+        datasets = [ds];
       }
       chartInstances[id] = new Chart(ctx.getContext('2d'), {
         type,
-        data: { labels: labelsRich, datasets: [ds] },
+        data: { labels: labelsRich, datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
           animation: { duration: 400 },
           onClick: (evt, elements) => { if (elements.length > 0) openDayDetail(elements[0].index); },
           plugins: {
-            legend: { display: false },
+            legend: { display: type === 'bar', labels: { color: 'rgba(255,255,255,.85)', font: { size: 11 }, boxWidth: 14 } },
             tooltip: { callbacks: { label: c => {
               const v = c.parsed?.y ?? c.parsed?.r ?? c.raw ?? 0;
-              return ' ' + Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+              return ' ' + c.dataset.label + ': ' + Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
             }}}
           },
           scales: hasAxes ? {
-            x: { ticks: { color:'rgba(255,255,255,.7)', font:{ size:11, weight:'600' } }, grid: { color:'rgba(255,255,255,.08)' } },
-            y: { ticks: { color:'rgba(255,255,255,.6)', font:{size:11},
+            x: { stacked: type === 'bar', ticks: { color:'rgba(255,255,255,.7)', font:{ size:11, weight:'600' } }, grid: { color:'rgba(255,255,255,.08)' } },
+            y: { stacked: type === 'bar', ticks: { color:'rgba(255,255,255,.6)', font:{size:11},
               callback: v => 'R$ '+(v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v)
             }, grid: { color:'rgba(255,255,255,.08)' } }
           } : undefined
@@ -1292,11 +1314,15 @@ function renderChart(id) {
     // Atualiza mini-KPIs
     const maxIdx = totals.indexOf(maxVal);
     totals.forEach((val, i) => {
-      const el = document.getElementById('dvk-'+i);
-      const eq = document.getElementById('dqk-'+i);
+      const el   = document.getElementById('dvk-'+i);
+      const eq   = document.getElementById('dqk-'+i);
+      const ea   = document.getElementById('dak-'+i);
       const card = document.getElementById('diakpi-'+i);
       if (el) el.textContent = val.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
       if (eq) eq.textContent = dates[i].length > 0 ? dates[i].join(', ') : '';
+      if (ea) ea.textContent = atrasadoTotals[i] > 0
+        ? '⚠ ' + atrasadoTotals[i].toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 }) + ' atrasado'
+        : '';
       if (card) card.classList.toggle('dia-maior', i === maxIdx);
     });
   }
