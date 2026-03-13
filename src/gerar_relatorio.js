@@ -99,7 +99,7 @@ const atrasados = dados.filter(r => {
   const dataVenc = strToDate(r['data_vencimento']);
   if (!dataVenc) return false;
   const status = (r['status'] || '').toUpperCase();
-  return dataVenc < hoje && !status.includes('PAGO');
+  return dataVenc <= hoje && !status.includes('PAGO');
 });
 
 const totalAtrasado = atrasados.reduce((s, r) => s + (r['valor'] || 0), 0);
