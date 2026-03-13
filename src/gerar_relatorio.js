@@ -929,11 +929,19 @@ function aggregateByWeekday(dateField, valueField) {
     const y = parseInt(parts[2], 10);
     const date = new Date(y, m, d);
     const dow = date.getDay();
-    if (dow >= 1 && dow <= 5) {
-      const idx = jsToIdx[dow];
+    // Avança para o próximo dia útil se cair no fim de semana
+    let effDate = date;
+    if (dow === 6) effDate = new Date(y, m, d + 2);      // Sábado → próxima Segunda
+    else if (dow === 0) effDate = new Date(y, m, d + 1); // Domingo → próxima Segunda
+    const effDow = effDate.getDay();
+    if (effDow >= 1 && effDow <= 5) {
+      const idx = jsToIdx[effDow];
       totals[idx] += parseFloat(r[valueField]) || 0;
       counts[idx] += 1;
-      const dateStr = String(d).padStart(2,'0') + '/' + String(m+1).padStart(2,'0') + '/' + y;
+      const effD = effDate.getDate();
+      const effM = effDate.getMonth() + 1;
+      const effY = effDate.getFullYear();
+      const dateStr = String(effD).padStart(2,'0') + '/' + String(effM).padStart(2,'0') + '/' + effY;
       if (!dates[idx].includes(dateStr)) dates[idx].push(dateStr);
     }
   });
