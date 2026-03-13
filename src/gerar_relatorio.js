@@ -84,6 +84,34 @@ const topSubCat = Object.entries(porSubCat)
   .sort((a, b) => b[1] - a[1])
   .slice(0, 8);
 
+// ─── Atrasados ───────────────────────────────────────────────────
+// Considera hoje como a data de geração do relatório
+const HOJE_STR = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+function strToDate(str) {
+  if (!str || typeof str !== 'string') return null;
+  const [d, m, y] = str.split('/').map(Number);
+  if (!d || !m || !y) return null;
+  return new Date(y, m - 1, d);
+}
+const hoje = strToDate(HOJE_STR);
+
+const atrasados = dados.filter(r => {
+  const dataVenc = strToDate(r['data_vencimento']);
+  if (!dataVenc) return false;
+  const status = (r['status'] || '').toUpperCase();
+  return dataVenc < hoje && !status.includes('PAGO');
+});
+
+const totalAtrasado = atrasados.reduce((s, r) => s + (r['valor'] || 0), 0);
+const atrasadosJSON = JSON.stringify(atrasados);
+
+// Por categoria dos atrasados
+const atrasadosPorCat = {};
+atrasados.forEach(r => {
+  const cat = r['categoria'] || 'Sem categoria';
+  atrasadosPorCat[cat] = (atrasadosPorCat[cat] || 0) + (r['valor'] || 0);
+});
+
 // ─── Serializar dados para o HTML ────────────────────────────────
 const dadosJSON = JSON.stringify(dados);
 const colunasJSON = JSON.stringify(COLUNAS);
@@ -437,6 +465,110 @@ const html = `<!DOCTYPE html>
       color: var(--muted);
     }
 
+    /* ── Seção Atrasados ── */
+    .atraso-section {
+      background: #fff5f5;
+      border: 2px solid #fca5a5;
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 28px;
+    }
+    .atraso-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .atraso-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #b91c1c;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .atraso-kpis {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .atraso-kpi {
+      background: #fee2e2;
+      border-radius: 10px;
+      padding: 12px 20px;
+      min-width: 160px;
+    }
+    .atraso-kpi .ak-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #b91c1c;
+      letter-spacing: .4px;
+      margin-bottom: 4px;
+    }
+    .atraso-kpi .ak-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #7f1d1d;
+    }
+    .atraso-cat-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-bottom: 18px;
+    }
+    .atraso-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .atraso-bar-label { font-size: .8rem; width: 180px; flex-shrink: 0; color: #7f1d1d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .atraso-bar-track { flex: 1; background: #fecaca; border-radius: 6px; height: 10px; }
+    .atraso-bar-fill  { height: 10px; border-radius: 6px; background: #dc2626; transition: width .4s; }
+    .atraso-bar-val   { font-size: .78rem; font-weight: 600; color: #7f1d1d; width: 130px; text-align: right; flex-shrink: 0; }
+    .atraso-table-wrap { overflow-x: auto; }
+    .atraso-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+    }
+    .atraso-table th {
+      background: #fecaca;
+      color: #7f1d1d;
+      font-weight: 700;
+      padding: 8px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .atraso-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #fee2e2;
+      color: #1e293b;
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .atraso-table tr:last-child td { border-bottom: none; }
+    .atraso-table tr:hover td { background: #fff1f2; }
+    .atraso-table .td-valor { font-weight: 700; text-align: right; color: #b91c1c; }
+    .atraso-dias-badge {
+      display: inline-block;
+      background: #dc2626;
+      color: #fff;
+      border-radius: 12px;
+      padding: 2px 9px;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .kpi-card.kpi-danger {
+      border-left-color: #dc2626;
+    }
+    .kpi-card.kpi-danger .value { color: #b91c1c; }
+
     /* ── Modal Detalhe Dia ── */
     .modal-overlay {
       display: none;
@@ -645,7 +777,69 @@ const html = `<!DOCTYPE html>
       <div class="value">${fmt(porCategoria['DESPESA VARIAVEL'] || 0)}</div>
       <div class="sub">Categoria mais representativa</div>
     </div>
+    <div class="kpi-card kpi-danger">
+      <div class="label">⚠️ Em Atraso</div>
+      <div class="value">${fmt(totalAtrasado)}</div>
+      <div class="sub">${atrasados.length} lançamento${atrasados.length !== 1 ? 's' : ''} vencido${atrasados.length !== 1 ? 's' : ''}</div>
+    </div>
   </div>
+
+  <!-- Seção Atrasados -->
+  ${atrasados.length > 0 ? `
+  <div class="atraso-section">
+    <div class="atraso-header">
+      <div class="atraso-title">🔴 Lançamentos em Atraso</div>
+      <span style="font-size:.8rem;color:#b91c1c;font-weight:600">${HOJE_STR}</span>
+    </div>
+    <div class="atraso-kpis">
+      <div class="atraso-kpi"><div class="ak-label">Total em Atraso</div><div class="ak-value">${fmt(totalAtrasado)}</div></div>
+      <div class="atraso-kpi"><div class="ak-label">Lançamentos</div><div class="ak-value">${atrasados.length}</div></div>
+      <div class="atraso-kpi"><div class="ak-label">Categorias</div><div class="ak-value">${Object.keys(atrasadosPorCat).length}</div></div>
+    </div>
+    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#b91c1c;margin-bottom:8px">Por Categoria</div>
+    <div class="atraso-cat-bars">
+      ${Object.entries(atrasadosPorCat).sort((a,b)=>b[1]-a[1]).map(([cat,val]) =>
+        `<div class="atraso-bar-row">
+          <span class="atraso-bar-label" title="${cat}">${cat}</span>
+          <div class="atraso-bar-track"><div class="atraso-bar-fill" style="width:${Math.round(val/totalAtrasado*100)}%"></div></div>
+          <span class="atraso-bar-val">${fmt(val)}</span>
+        </div>`
+      ).join('')}
+    </div>
+    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#b91c1c;margin:14px 0 8px">Detalhamento</div>
+    <div class="atraso-table-wrap">
+      <table class="atraso-table">
+        <thead><tr>
+          <th>Vencimento</th>
+          <th>Dias em Atraso</th>
+          <th>Descrição</th>
+          <th>Categoria</th>
+          <th>Sub-Categoria</th>
+          <th>Responsável</th>
+          <th>Origem</th>
+          <th>Tipo Pgto</th>
+          <th style="text-align:right">Valor (R$)</th>
+        </tr></thead>
+        <tbody>
+          ${atrasados.sort((a,b)=>{ const da=strToDate(a['data_vencimento']),db=strToDate(b['data_vencimento']); return da-db; }).map(r => {
+            const venc = strToDate(r['data_vencimento']);
+            const dias = venc ? Math.floor((hoje - venc)/(1000*60*60*24)) : 0;
+            return `<tr>
+              <td>${r['data_vencimento']||'—'}</td>
+              <td><span class="atraso-dias-badge">${dias}d</span></td>
+              <td title="${r['descricao']||''}">${r['descricao']||'—'}</td>
+              <td>${r['categoria']||'—'}</td>
+              <td>${r['sub_categoria']||'—'}</td>
+              <td>${r['responsavel']||'—'}</td>
+              <td>${r['origem']||'—'}</td>
+              <td>${r['tipo_pagamento']||'—'}</td>
+              <td class="td-valor">${fmt(r['valor']||0)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>` : ''}
 
   <!-- Charts -->
   <div class="charts-grid" id="chartsGrid">
