@@ -4,8 +4,10 @@ const path = require('path');
 
 // ─── Leitura da planilha ─────────────────────────────────────────
 const wb = XLSX.readFile(path.join(__dirname, '..', 'data', 'CAP_Semana_12.xlsx'));
-const ws = wb.Sheets['Planilha1'];
+const ws = wb.Sheets['CAP_Semana_12'];
 const rawData = XLSX.utils.sheet_to_json(ws, { defval: '' });
+const wsPrev = wb.Sheets['Previsto'];
+const rawDataPrev = XLSX.utils.sheet_to_json(wsPrev, { defval: '' });
 
 // Colunas relevantes (sem __EMPTY*)
 const COLUNAS = [
@@ -27,6 +29,23 @@ const DATE_FIELDS = ['data_inclusao', 'data_vencimento', 'data_pagamento'];
 
 // Normalizar dados
 const dados = rawData.map(row => {
+  const obj = {};
+  COLUNAS.forEach(col => {
+    let val = row[col];
+    if (DATE_FIELDS.includes(col) && typeof val === 'number') {
+      val = excelDateToStr(val);
+    } else if (col === 'verdadeiro ou falso') {
+      val = val === true || val === 'TRUE' || val === 'true' ? 'Sim' : (val === false || val === 'FALSE' || val === 'false' ? 'Não' : '');
+    } else if (col === 'valor') {
+      val = typeof val === 'number' ? val : parseFloat(val) || 0;
+    }
+    obj[col] = val === undefined || val === null ? '' : val;
+  });
+  return obj;
+});
+
+// Normalizar dados previstos
+const dadosPrevisto = rawDataPrev.map(row => {
   const obj = {};
   COLUNAS.forEach(col => {
     let val = row[col];
@@ -84,6 +103,40 @@ const topSubCat = Object.entries(porSubCat)
   .sort((a, b) => b[1] - a[1])
   .slice(0, 8);
 
+// ─── Previsto vs Realizado ────────────────────────────────────────
+const totalPrevisto = dadosPrevisto.reduce((s, r) => s + (r['valor'] || 0), 0);
+const totalRealizado = totalGeral;
+const diferencaPR = totalRealizado - totalPrevisto;
+const percExecucao = totalPrevisto > 0 ? (totalRealizado / totalPrevisto * 100) : 0;
+
+const porCategoriaPrev = {};
+dadosPrevisto.forEach(r => {
+  const cat = r['categoria'] || 'Sem categoria';
+  porCategoriaPrev[cat] = (porCategoriaPrev[cat] || 0) + (r['valor'] || 0);
+});
+
+const porRespPrev = {};
+dadosPrevisto.forEach(r => {
+  const resp = r['responsavel'] || 'N/A';
+  porRespPrev[resp] = (porRespPrev[resp] || 0) + (r['valor'] || 0);
+});
+
+const todasCategorias = [...new Set([...Object.keys(porCategoriaPrev), ...Object.keys(porCategoria)])];
+const comparacaoCategoria = todasCategorias.map(cat => ({
+  categoria: cat,
+  previsto: porCategoriaPrev[cat] || 0,
+  realizado: porCategoria[cat] || 0,
+  diferenca: (porCategoria[cat] || 0) - (porCategoriaPrev[cat] || 0),
+  perc: (porCategoriaPrev[cat] || 0) > 0 ? ((porCategoria[cat] || 0) / porCategoriaPrev[cat] * 100) : null
+})).sort((a, b) => b.previsto - a.previsto);
+
+const todosResp = [...new Set([...Object.keys(porRespPrev), ...Object.keys(porResp)])];
+const comparacaoResp = todosResp.map(resp => ({
+  responsavel: resp,
+  previsto: porRespPrev[resp] || 0,
+  realizado: porResp[resp] || 0,
+})).sort((a, b) => b.previsto - a.previsto);
+
 // ─── Atrasados ───────────────────────────────────────────────────
 // Considera hoje como a data de geração do relatório
 const HOJE_STR = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
@@ -115,6 +168,8 @@ atrasados.forEach(r => {
 // ─── Serializar dados para o HTML ────────────────────────────────
 const dadosJSON = JSON.stringify(dados);
 const colunasJSON = JSON.stringify(COLUNAS);
+const comparacaoCatJSON  = JSON.stringify(comparacaoCategoria);
+const comparacaoRespJSON = JSON.stringify(comparacaoResp);
 
 // ─── Paleta de cores ─────────────────────────────────────────────
 const CORES = [
@@ -690,6 +745,45 @@ const html = `<!DOCTYPE html>
     .dia-kpi.dia-atraso .dia-valor { color: #fca5a5; }
     .dia-kpi.dia-atraso .dia-qtd   { color: rgba(252,165,165,.7); }
 
+    /* ── Previsto vs Realizado ── */
+    .pv-section {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 28px;
+    }
+    .pv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+      min-width: 580px;
+    }
+    .pv-table th {
+      background: #f1f5ff;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 9px 12px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 2px solid #dde3f5;
+    }
+    .pv-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f0f0f5;
+      color: var(--text);
+    }
+    .pv-table tfoot td {
+      background: #f8faff;
+      border-top: 2px solid #dde3f5;
+      border-bottom: none;
+      padding: 8px 12px;
+      color: var(--text);
+    }
+    .pv-table tbody tr:hover td { background: #f8faff; }
+    .pv-progress { background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden; min-width: 80px; }
+    .pv-progress-fill { height: 100%; border-radius: 4px; transition: width .4s; }
+
     /* ── Responsivo: Tablet (≤ 900px) ── */
     @media (max-width: 900px) {
       header { padding: 20px 20px; }
@@ -788,6 +882,84 @@ const html = `<!DOCTYPE html>
       <div class="label">⚠️ Em Atraso</div>
       <div class="value">${fmt(totalAtrasado)}</div>
       <div class="sub">${atrasados.length} lançamento${atrasados.length !== 1 ? 's' : ''} vencido${atrasados.length !== 1 ? 's' : ''}</div>
+    </div>
+  </div>
+
+  <!-- Previsto vs Realizado -->
+  <div class="pv-section">
+    <div class="section-title" style="margin-bottom:20px">📊 Previsto vs Realizado</div>
+    <div class="kpi-grid" style="margin-bottom:20px">
+      <div class="kpi-card">
+        <div class="label">Total Previsto</div>
+        <div class="value">${fmt(totalPrevisto)}</div>
+        <div class="sub">${dadosPrevisto.length} lançamentos planejados</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#059669">
+        <div class="label">Total Realizado</div>
+        <div class="value" style="color:#065f46">${fmt(totalRealizado)}</div>
+        <div class="sub">${totalRegistros} lançamentos no período</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:${diferencaPR > 0 ? '#dc2626' : '#059669'}">
+        <div class="label">Diferença (R − P)</div>
+        <div class="value" style="color:${diferencaPR > 0 ? '#b91c1c' : '#065f46'}">${diferencaPR >= 0 ? '+' : ''}${fmt(diferencaPR)}</div>
+        <div class="sub">${diferencaPR > 0 ? 'Acima do previsto' : diferencaPR < 0 ? 'Abaixo do previsto' : 'Dentro do previsto'}</div>
+      </div>
+      <div class="kpi-card" style="border-left-color:#7c3aed">
+        <div class="label">% Executado</div>
+        <div class="value" style="color:#5b21b6">${percExecucao.toFixed(1)}%</div>
+        <div class="sub">do total planejado</div>
+      </div>
+    </div>
+    <div class="charts-grid" style="margin-bottom:20px">
+      <div class="chart-card">
+        <div class="chart-header"><h3>Previsto vs Realizado — Categoria</h3></div>
+        <div class="chart-wrap"><canvas id="chartPVCat"></canvas></div>
+        <p class="chart-desc">Comparativo entre o valor planejado e o lançado por categoria de despesa.</p>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><h3>Previsto vs Realizado — Responsável</h3></div>
+        <div class="chart-wrap"><canvas id="chartPVResp"></canvas></div>
+        <p class="chart-desc">Comparativo entre o valor planejado e o lançado por centro de responsabilidade.</p>
+      </div>
+    </div>
+    <div class="table-card" style="margin-bottom:0">
+      <div class="section-title" style="margin-bottom:14px">Detalhamento por Categoria</div>
+      <div style="overflow-x:auto">
+        <table class="pv-table">
+          <thead><tr>
+            <th>Categoria</th>
+            <th style="text-align:right">Previsto</th>
+            <th style="text-align:right">Realizado</th>
+            <th style="text-align:right">Diferença</th>
+            <th style="text-align:right">% Exec.</th>
+            <th style="min-width:100px">Progresso</th>
+          </tr></thead>
+          <tbody>
+            ${comparacaoCategoria.map(row => {
+              const perc = row.perc !== null ? row.perc : 0;
+              const barW = Math.min(Math.round(perc), 100);
+              const barColor = row.perc === null ? '#94a3b8' : row.perc > 110 ? '#dc2626' : row.perc >= 90 ? '#059669' : '#d97706';
+              const difColor = row.diferenca > 0 ? '#b91c1c' : '#065f46';
+              return `<tr>
+                <td><strong>${row.categoria}</strong></td>
+                <td style="text-align:right">${fmt(row.previsto)}</td>
+                <td style="text-align:right">${fmt(row.realizado)}</td>
+                <td style="text-align:right;font-weight:700;color:${difColor}">${row.diferenca >= 0 ? '+' : ''}${fmt(row.diferenca)}</td>
+                <td style="text-align:right;font-weight:700;color:${barColor}">${row.perc !== null ? row.perc.toFixed(1)+'%' : '—'}</td>
+                <td><div class="pv-progress"><div class="pv-progress-fill" style="width:${barW}%;background:${barColor}"></div></div></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td><strong>TOTAL</strong></td>
+            <td style="text-align:right"><strong>${fmt(totalPrevisto)}</strong></td>
+            <td style="text-align:right"><strong>${fmt(totalRealizado)}</strong></td>
+            <td style="text-align:right;font-weight:700;color:${diferencaPR >= 0 ? '#b91c1c' : '#065f46'}">${diferencaPR >= 0 ? '+' : ''}${fmt(diferencaPR)}</td>
+            <td style="text-align:right;font-weight:700">${percExecucao.toFixed(1)}%</td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -924,8 +1096,10 @@ const html = `<!DOCTYPE html>
 
 <script>
 // ── Dados ─────────────────────────────────────────────────────────
-const DADOS   = ${dadosJSON};
-const COLUNAS = ${colunasJSON};
+const DADOS    = ${dadosJSON};
+const COLUNAS  = ${colunasJSON};
+const COMP_CAT  = ${comparacaoCatJSON};
+const COMP_RESP = ${comparacaoRespJSON};
 
 // ── ag-Grid ───────────────────────────────────────────────────────
 let gridApi;
@@ -1492,8 +1666,51 @@ function closeDayModal() {
   document.body.style.overflow = '';
 }
 
+// ── Previsto vs Realizado: gráfico agrupado ──────────────────────
+function buildGroupedChart(id, labels, data1, data2, label1, label2) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  return new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: label1, data: data1, backgroundColor: '#2563ebcc', borderColor: '#2563eb', borderWidth: 0, borderRadius: 4 },
+        { label: label2, data: data2, backgroundColor: '#05966999', borderColor: '#059669', borderWidth: 0, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+        tooltip: { callbacks: { label: c => ' ' + Number(c.raw).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) } }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 }, maxRotation: 38 } },
+        y: { ticks: { font: { size: 11 }, callback: v => 'R$ '+(v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v) } }
+      }
+    }
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   syncCharts(COLUNAS);
+  buildGroupedChart(
+    'chartPVCat',
+    COMP_CAT.map(r => r.categoria),
+    COMP_CAT.map(r => r.previsto),
+    COMP_CAT.map(r => r.realizado),
+    'Previsto', 'Realizado'
+  );
+  buildGroupedChart(
+    'chartPVResp',
+    COMP_RESP.map(r => r.responsavel),
+    COMP_RESP.map(r => r.previsto),
+    COMP_RESP.map(r => r.realizado),
+    'Previsto', 'Realizado'
+  );
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayModal(); });
   document.getElementById('dayModal').addEventListener('click', e => {
     if (e.target === document.getElementById('dayModal')) closeDayModal();
