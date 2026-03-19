@@ -165,11 +165,25 @@ atrasados.forEach(r => {
   atrasadosPorCat[cat] = (atrasadosPorCat[cat] || 0) + (r['valor'] || 0);
 });
 
+// ─── Imprevistos (lançamentos não constavam no Previsto) ─────────
+const descPrevSet = new Set(dadosPrevisto.map(r => (r['descricao'] || '').toUpperCase().trim()));
+const imprevistos = dados.filter(r => {
+  const d = (r['descricao'] || '').toUpperCase().trim();
+  return !descPrevSet.has(d);
+});
+const totalImprevisto = imprevistos.reduce((s, r) => s + (r['valor'] || 0), 0);
+const imprevistoPorCat = {};
+imprevistos.forEach(r => {
+  const cat = r['categoria'] || 'Sem categoria';
+  imprevistoPorCat[cat] = (imprevistoPorCat[cat] || 0) + (r['valor'] || 0);
+});
+
 // ─── Serializar dados para o HTML ────────────────────────────────
-const dadosJSON = JSON.stringify(dados);
-const colunasJSON = JSON.stringify(COLUNAS);
+const dadosJSON        = JSON.stringify(dados);
+const colunasJSON      = JSON.stringify(COLUNAS);
 const comparacaoCatJSON  = JSON.stringify(comparacaoCategoria);
 const comparacaoRespJSON = JSON.stringify(comparacaoResp);
+const imprevistoJSON   = JSON.stringify(imprevistos);
 
 // ─── Paleta de cores ─────────────────────────────────────────────
 const CORES = [
@@ -624,6 +638,92 @@ const html = `<!DOCTYPE html>
     }
     .kpi-card.kpi-danger .value { color: #b91c1c; }
 
+    /* ── Seção Imprevistos ── */
+    .impr-section {
+      background: #fffbeb;
+      border: 2px solid #fbbf24;
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-bottom: 28px;
+    }
+    .impr-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .impr-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #92400e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .impr-kpis {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .impr-kpi {
+      background: #fef3c7;
+      border-radius: 10px;
+      padding: 12px 20px;
+      min-width: 160px;
+    }
+    .impr-kpi .ik-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #92400e;
+      letter-spacing: .4px;
+      margin-bottom: 4px;
+    }
+    .impr-kpi .ik-value { font-size: 1.2rem; font-weight: 700; color: #78350f; }
+    .impr-cat-bars { display: flex; flex-direction: column; gap: 7px; margin-bottom: 18px; }
+    .impr-bar-row  { display: flex; align-items: center; gap: 10px; }
+    .impr-bar-label { font-size: .8rem; width: 180px; flex-shrink: 0; color: #78350f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .impr-bar-track { flex: 1; background: #fde68a; border-radius: 6px; height: 10px; }
+    .impr-bar-fill  { height: 10px; border-radius: 6px; background: #d97706; transition: width .4s; }
+    .impr-bar-val   { font-size: .78rem; font-weight: 600; color: #78350f; width: 130px; text-align: right; flex-shrink: 0; }
+    .impr-table-wrap { overflow-x: auto; }
+    .impr-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .impr-table th {
+      background: #fde68a;
+      color: #78350f;
+      font-weight: 700;
+      padding: 8px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .impr-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #fef3c7;
+      color: #1e293b;
+      max-width: 200px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .impr-table tr:last-child td { border-bottom: none; }
+    .impr-table tr:hover td { background: #fffde7; }
+    .impr-table .td-valor { font-weight: 700; text-align: right; color: #92400e; }
+    .impr-toggle-btn {
+      background: none;
+      border: 1.5px solid #fbbf24;
+      border-radius: 8px;
+      color: #92400e;
+      font-size: .8rem;
+      font-weight: 600;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .impr-toggle-btn:hover { background: #fef3c7; }
+
     /* ── Modal Detalhe Dia ── */
     .modal-overlay {
       display: none;
@@ -963,7 +1063,6 @@ const html = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Seção Atrasados -->
   ${atrasados.length > 0 ? `
   <div class="atraso-section">
     <div class="atraso-header">
@@ -1017,6 +1116,73 @@ const html = `<!DOCTYPE html>
           }).join('')}
         </tbody>
       </table>
+    </div>
+  </div>` : ''}
+
+  <!-- Seção Imprevistos -->
+  ${imprevistos.length > 0 ? `
+  <div class="impr-section">
+    <div class="impr-header">
+      <div class="impr-title">🟡 Pagamentos Não Planejados (Imprevistos)</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:.8rem;color:#92400e;font-weight:600">${imprevistos.length} lançamento${imprevistos.length !== 1 ? 's' : ''} fora do previsto</span>
+        <button class="impr-toggle-btn" id="imprToggleBtn" onclick="toggleImprTable()">▼ Ver detalhamento</button>
+      </div>
+    </div>
+    <div class="impr-kpis">
+      <div class="impr-kpi"><div class="ik-label">Total Imprevisto</div><div class="ik-value">${fmt(totalImprevisto)}</div></div>
+      <div class="impr-kpi"><div class="ik-label">Lançamentos</div><div class="ik-value">${imprevistos.length}</div></div>
+      <div class="impr-kpi"><div class="ik-label">Categorias</div><div class="ik-value">${Object.keys(imprevistoPorCat).length}</div></div>
+      <div class="impr-kpi"><div class="ik-label">% do Total Real.</div><div class="ik-value">${totalRealizado > 0 ? ((totalImprevisto / totalRealizado) * 100).toFixed(1) : '0.0'}%</div></div>
+    </div>
+    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#92400e;margin-bottom:8px">Por Categoria</div>
+    <div class="impr-cat-bars">
+      ${Object.entries(imprevistoPorCat).sort((a,b)=>b[1]-a[1]).map(([cat,val]) =>
+        `<div class="impr-bar-row">
+          <span class="impr-bar-label" title="${cat}">${cat}</span>
+          <div class="impr-bar-track"><div class="impr-bar-fill" style="width:${Math.round(val/totalImprevisto*100)}%"></div></div>
+          <span class="impr-bar-val">${fmt(val)}</span>
+        </div>`
+      ).join('')}
+    </div>
+    <div id="imprTableSection" style="display:none">
+      <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#92400e;margin:14px 0 8px">Detalhamento</div>
+      <div class="impr-table-wrap">
+        <table class="impr-table">
+          <thead><tr>
+            <th>Inclusão</th>
+            <th>Vencimento</th>
+            <th>Pagamento</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Sub-Categoria</th>
+            <th>Responsável</th>
+            <th>Origem</th>
+            <th>Tipo Pgto</th>
+            <th>Status</th>
+            <th style="text-align:right">Valor (R$)</th>
+          </tr></thead>
+          <tbody>
+            ${imprevistos.slice().sort((a,b) => (b['valor']||0) - (a['valor']||0)).map(r => {
+              const st = (r['status'] || '').toLowerCase();
+              const badgeCls = st.includes('pago') ? 'pago' : st.includes('pend') ? 'pendente' : 'outro';
+              return `<tr>
+                <td>${r['data_inclusao']||'—'}</td>
+                <td>${r['data_vencimento']||'—'}</td>
+                <td>${r['data_pagamento']||'—'}</td>
+                <td title="${(r['descricao']||'').replace(/"/g,'&quot;')}">${r['descricao']||'—'}</td>
+                <td>${r['categoria']||'—'}</td>
+                <td>${r['sub_categoria']||'—'}</td>
+                <td>${r['responsavel']||'—'}</td>
+                <td>${r['origem']||'—'}</td>
+                <td>${r['tipo_pagamento']||'—'}</td>
+                <td><span class="status-badge ${badgeCls}">${r['status']||'—'}</span></td>
+                <td class="td-valor">${fmt(r['valor']||0)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>` : ''}
 
@@ -1716,6 +1882,16 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.target === document.getElementById('dayModal')) closeDayModal();
   });
 });
+
+// ── Imprevistos: expandir/recolher tabela ─────────────────────────
+function toggleImprTable() {
+  const sec = document.getElementById('imprTableSection');
+  const btn = document.getElementById('imprToggleBtn');
+  if (!sec || !btn) return;
+  const opening = sec.style.display === 'none';
+  sec.style.display = opening ? '' : 'none';
+  btn.textContent = opening ? '▲ Ocultar detalhamento' : '▼ Ver detalhamento';
+}
 <\/script>
 </body>
 </html>`;
