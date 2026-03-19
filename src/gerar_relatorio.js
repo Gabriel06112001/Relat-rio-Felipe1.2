@@ -185,6 +185,12 @@ const comparacaoCatJSON  = JSON.stringify(comparacaoCategoria);
 const comparacaoRespJSON = JSON.stringify(comparacaoResp);
 const imprevistoJSON   = JSON.stringify(imprevistos);
 
+// Totais por status (para os badges das tabs)
+const totalPago     = dados.filter(r => (r['status']||'').toUpperCase()==='PAGO').reduce((s,r)=>s+(r['valor']||0),0);
+const countPago     = dados.filter(r => (r['status']||'').toUpperCase()==='PAGO').length;
+const totalPendente = dados.filter(r => (r['status']||'').toUpperCase().includes('PEND')).reduce((s,r)=>s+(r['valor']||0),0);
+const countPendente = dados.filter(r => (r['status']||'').toUpperCase().includes('PEND')).length;
+
 // ─── Paleta de cores ─────────────────────────────────────────────
 const CORES = [
   '#2563eb','#64748b','#059669','#d97706','#0891b2',
@@ -724,6 +730,56 @@ const html = `<!DOCTYPE html>
     }
     .impr-toggle-btn:hover { background: #fef3c7; }
 
+    /* ── View Tabs ── */
+    .view-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 12px 18px;
+      box-shadow: var(--shadow);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .view-tab-label {
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-right: 4px;
+    }
+    .view-tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 18px;
+      border: 2px solid #dde3f5;
+      border-radius: 8px;
+      background: #f4f6ff;
+      color: var(--muted);
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .view-tab-btn:hover { background: #e0e7ff; border-color: var(--primary); color: var(--primary); }
+    .view-tab-btn.active.tab-todos    { background: #1e293b; border-color: #1e293b; color: #fff; }
+    .view-tab-btn.active.tab-pago     { background: #059669; border-color: #059669; color: #fff; }
+    .view-tab-btn.active.tab-pendente { background: #d97706; border-color: #d97706; color: #fff; }
+    .view-tab-badge {
+      font-size: .72rem;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 12px;
+      white-space: nowrap;
+    }
+    .view-tab-btn.active .view-tab-badge { background: rgba(255,255,255,.2); color: #fff; }
+    .tab-todos .view-tab-badge   { background: #e2e8f8; color: #475569; }
+    .tab-pago .view-tab-badge    { background: #d1fae5; color: #065f46; }
+    .tab-pendente .view-tab-badge{ background: #fef3c7; color: #92400e; }
+
     /* ── Modal Detalhe Dia ── */
     .modal-overlay {
       display: none;
@@ -961,22 +1017,36 @@ const html = `<!DOCTYPE html>
 
 <div class="container">
 
+  <!-- View Tabs -->
+  <div class="view-tabs">
+    <span class="view-tab-label">Visualizar:</span>
+    <button class="view-tab-btn tab-todos active" onclick="setView('todos')">
+      📋 Todos <span class="view-tab-badge">${totalRegistros} · ${fmt(totalGeral)}</span>
+    </button>
+    <button class="view-tab-btn tab-pago" onclick="setView('pago')">
+      ✅ Pago <span class="view-tab-badge">${countPago} · ${fmt(totalPago)}</span>
+    </button>
+    <button class="view-tab-btn tab-pendente" onclick="setView('pendente')">
+      🟡 A Pagar <span class="view-tab-badge">${countPendente} · ${fmt(totalPendente)}</span>
+    </button>
+  </div>
+
   <!-- KPIs -->
   <div class="kpi-grid">
     <div class="kpi-card">
-      <div class="label">Total Geral</div>
+      <div class="label" id="kpi-total-label">Total Geral</div>
       <div class="value" id="kpi-total">${fmt(totalGeral)}</div>
-      <div class="sub">Soma de todos os valores</div>
+      <div class="sub" id="kpi-total-sub">Soma de todos os valores</div>
     </div>
     <div class="kpi-card">
-      <div class="label">Total Registros</div>
+      <div class="label" id="kpi-count-label">Total Registros</div>
       <div class="value" id="kpi-count">${totalRegistros}</div>
-      <div class="sub">Linhas na planilha</div>
+      <div class="sub" id="kpi-count-sub">Linhas na planilha</div>
     </div>
     <div class="kpi-card">
-      <div class="label">Maior Despesa Variável</div>
-      <div class="value">${fmt(porCategoria['DESPESA VARIAVEL'] || 0)}</div>
-      <div class="sub">Categoria mais representativa</div>
+      <div class="label" id="kpi-top-cat-label">Maior Despesa Variável</div>
+      <div class="value" id="kpi-top-cat">${fmt(porCategoria['DESPESA VARIAVEL'] || 0)}</div>
+      <div class="sub" id="kpi-top-cat-sub">Categoria mais representativa</div>
     </div>
     <div class="kpi-card kpi-danger">
       <div class="label">⚠️ Em Atraso</div>
@@ -1266,6 +1336,13 @@ const DADOS    = ${dadosJSON};
 const COLUNAS  = ${colunasJSON};
 const COMP_CAT  = ${comparacaoCatJSON};
 const COMP_RESP = ${comparacaoRespJSON};
+const IMPREVISTOS = ${imprevistoJSON};
+
+// ── Visões: Todos / Pago / A Pagar ───────────────────────────────
+const DADOS_PAGO     = DADOS.filter(r => (r.status || '').toUpperCase() === 'PAGO');
+const DADOS_PENDENTE = DADOS.filter(r => (r.status || '').toUpperCase().includes('PEND'));
+let DADOS_VIEW = DADOS;
+let currentViewKey = 'todos';
 
 // ── ag-Grid ───────────────────────────────────────────────────────
 let gridApi;
@@ -1417,7 +1494,7 @@ const chartInstances = {};
 // ── Helpers de agregação ──────────────────────────────────────────
 function aggregateBy(groupField, valueField, topN) {
   const map = {};
-  DADOS.forEach(r => {
+  DADOS_VIEW.forEach(r => {
     const key = r[groupField] || 'N/A';
     map[key] = (map[key] || 0) + (parseFloat(r[valueField]) || 0);
   });
@@ -1428,7 +1505,7 @@ function aggregateBy(groupField, valueField, topN) {
 
 function aggregateByCount(groupField, topN) {
   const map = {};
-  DADOS.forEach(r => {
+  DADOS_VIEW.forEach(r => {
     const key = r[groupField] || 'N/A';
     map[key] = (map[key] || 0) + 1;
   });
@@ -1439,7 +1516,7 @@ function aggregateByCount(groupField, topN) {
 
 function aggregateByMonth(dateField, valueField) {
   const map = {};
-  DADOS.forEach(r => {
+  DADOS_VIEW.forEach(r => {
     const ds = r[dateField];
     if (!ds || typeof ds !== 'string') return;
     const parts = ds.split('/');
@@ -1463,7 +1540,7 @@ function aggregateByWeekday(dateField, valueField) {
   const counts = [0, 0, 0, 0, 0, 0];
   const dates  = [[], [], [], [], [], []];
   const hojeRef = new Date(); hojeRef.setHours(0, 0, 0, 0);
-  DADOS.forEach(r => {
+  DADOS_VIEW.forEach(r => {
     const ds = r[dateField];
     if (!ds || typeof ds !== 'string') return;
     const parts = ds.split('/');
@@ -1661,6 +1738,55 @@ function renderChart(id) {
   }
 }
 
+// ── Troca visão: Todos / Pago / A Pagar ──────────────────────────
+function setView(key) {
+  currentViewKey = key;
+  DADOS_VIEW = key === 'pago' ? DADOS_PAGO : key === 'pendente' ? DADOS_PENDENTE : DADOS;
+  _weekdayData = null; // limpa cache do gráfico de dia da semana
+
+  // Atualiza botões de tab
+  document.querySelectorAll('.view-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.classList.contains('tab-' + key));
+  });
+
+  const fmtC = v => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const viewTotal = DADOS_VIEW.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0);
+  const viewCount = DADOS_VIEW.length;
+
+  // Calcula top categoria da view atual
+  const catMap = {};
+  DADOS_VIEW.forEach(r => { const c = r['categoria'] || 'N/A'; catMap[c] = (catMap[c] || 0) + (parseFloat(r['valor']) || 0); });
+  const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0] || ['—', 0];
+
+  // Atualiza KPIs
+  const labels = { todos: ['Total Geral', 'Soma de todos os valores'], pago: ['Total Pago', 'Efetivamente quitado'], pendente: ['Total A Pagar', 'Ainda pendente de pagamento'] };
+  const [lbl, sub] = labels[key];
+  const elLabel = document.getElementById('kpi-total-label');
+  const elVal   = document.getElementById('kpi-total');
+  const elSub   = document.getElementById('kpi-total-sub');
+  if (elLabel) elLabel.textContent = lbl;
+  if (elVal)   elVal.textContent   = fmtC(viewTotal);
+  if (elSub)   elSub.textContent   = sub;
+
+  const elCount    = document.getElementById('kpi-count');
+  const elCountLbl = document.getElementById('kpi-count-label');
+  const elCountSub = document.getElementById('kpi-count-sub');
+  if (elCountLbl) elCountLbl.textContent = key === 'todos' ? 'Total Registros' : key === 'pago' ? 'Registros Pagos' : 'Registros Pendentes';
+  if (elCount)    elCount.textContent    = viewCount;
+  if (elCountSub) elCountSub.textContent = 'Lançamentos na visão atual';
+
+  const elTopLbl = document.getElementById('kpi-top-cat-label');
+  const elTopVal = document.getElementById('kpi-top-cat');
+  const elTopSub = document.getElementById('kpi-top-cat-sub');
+  if (elTopLbl) elTopLbl.textContent = 'Categoria Principal';
+  if (elTopVal) elTopVal.textContent = fmtC(topCat[1]);
+  if (elTopSub) elTopSub.textContent = topCat[0];
+
+  // Atualiza grid e gráficos
+  gridApi.setGridOption('rowData', DADOS_VIEW);
+  syncCharts(activeColumns);
+}
+
 // ── Troca tipo do gráfico ao clicar no botão ──────────────────────
 function switchType(chartId, newType) {
   currentChartTypes[chartId] = newType;
@@ -1722,7 +1848,7 @@ function openDayDetail(dayIdx) {
   let rows;
   if (dayIdx === 0) {
     const hojeRef = new Date(); hojeRef.setHours(0, 0, 0, 0);
-    rows = DADOS.filter(r => {
+    rows = DADOS_VIEW.filter(r => {
       const dv = r['data_vencimento'];
       if (!dv || typeof dv !== 'string') return false;
       const [dd, mm, yy] = dv.split('/').map(Number);
@@ -1730,7 +1856,7 @@ function openDayDetail(dayIdx) {
       return date <= hojeRef && !(r['status'] || '').toUpperCase().includes('PAGO');
     });
   } else {
-    rows = DADOS.filter(r => {
+    rows = DADOS_VIEW.filter(r => {
       const dv = r['data_vencimento'];
       return dv && dayDates.includes(dv);
     });
