@@ -1419,6 +1419,27 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   gridApi = agGrid.createGrid(gridDiv, gridOptions);
+
+  syncCharts(COLUNAS);
+  buildGroupedChart(
+    'chartPVCat',
+    COMP_CAT.map(r => r.categoria),
+    COMP_CAT.map(r => r.previsto),
+    COMP_CAT.map(r => r.realizado),
+    'Previsto', 'Realizado'
+  );
+  buildGroupedChart(
+    'chartPVResp',
+    COMP_RESP.map(r => r.responsavel),
+    COMP_RESP.map(r => r.previsto),
+    COMP_RESP.map(r => r.realizado),
+    'Previsto', 'Realizado'
+  );
+  buildDiaSemanaPrevisChart('bar');
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayModal(); });
+  document.getElementById('dayModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('dayModal')) closeDayModal();
+  });
 });
 
 function selectAll(check) {
@@ -2188,29 +2209,6 @@ function buildGroupedChart(id, labels, data1, data2, label1, label2) {
     }
   });
 }
-
-window.addEventListener('DOMContentLoaded', () => {
-  syncCharts(COLUNAS);
-  buildGroupedChart(
-    'chartPVCat',
-    COMP_CAT.map(r => r.categoria),
-    COMP_CAT.map(r => r.previsto),
-    COMP_CAT.map(r => r.realizado),
-    'Previsto', 'Realizado'
-  );
-  buildGroupedChart(
-    'chartPVResp',
-    COMP_RESP.map(r => r.responsavel),
-    COMP_RESP.map(r => r.previsto),
-    COMP_RESP.map(r => r.realizado),
-    'Previsto', 'Realizado'
-  );
-  buildDiaSemanaPrevisChart('bar');
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayModal(); });
-  document.getElementById('dayModal').addEventListener('click', e => {
-    if (e.target === document.getElementById('dayModal')) closeDayModal();
-  });
-});
 
 // ── Imprevistos: expandir/recolher tabela ─────────────────────────
 function toggleImprTable() {
