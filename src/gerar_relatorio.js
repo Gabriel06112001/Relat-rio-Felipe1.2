@@ -4,10 +4,18 @@ const path = require('path');
 
 // ─── Leitura da planilha ─────────────────────────────────────────
 const wb = XLSX.readFile(path.join(__dirname, '..', 'data', 'CAP_Semana_13.xlsx'));
-const ws = wb.Sheets['CAP_Semana_13'];
-const rawData = XLSX.utils.sheet_to_json(ws, { defval: '' });
 const wsPrev = wb.Sheets['PREVISTO'];
 const rawDataPrev = XLSX.utils.sheet_to_json(wsPrev, { defval: '' });
+
+// A aba CAP_Semana_13 pode estar vazia (fórmulas sem cache).
+// Nesse caso, usamos a aba PREVISTO como fonte de dados completa:
+//   - Lançamentos efetivados = todos exceto origem 'PREVISÃO'
+//   - Previstos = apenas origem 'PREVISÃO'
+const ws = wb.Sheets['CAP_Semana_13'];
+const _rawCapDirect = XLSX.utils.sheet_to_json(ws, { defval: '' });
+const rawData = _rawCapDirect.length > 0
+  ? _rawCapDirect
+  : rawDataPrev.filter(r => (r['origem'] || '').toUpperCase() !== 'PREVISÃO');
 
 // Colunas relevantes (sem __EMPTY*)
 const COLUNAS = [
