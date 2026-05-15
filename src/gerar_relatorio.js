@@ -991,23 +991,6 @@ const html = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Informações de Previsão -->
-  <div class="charts-grid" style="margin-bottom:28px">
-    <div class="chart-card chart-card-featured" id="card-chartDiaSemanaPrevis">
-      <div class="chart-header"><h3>📅 Valor Total a Pagar por Dia da Semana (Previsto)</h3>${typeBtns('chartDiaSemanaPrevis',['bar','line','radar','polarArea'],'bar')}</div>
-      <div class="chart-wrap-featured"><canvas id="chartDiaSemanaPrevis"></canvas></div>
-      <div class="dias-kpis" id="diasKpisPrev">
-        <div class="dia-kpi dia-atraso" id="pvkpi-0"><div class="dia-nome">⚠ Atrasado</div><div class="dia-valor" id="pvk-0">—</div><div class="dia-qtd" id="pvq-0"></div></div>
-        <div class="dia-kpi" id="pvkpi-1"><div class="dia-nome">Segunda</div><div class="dia-valor" id="pvk-1">—</div><div class="dia-qtd" id="pvq-1"></div></div>
-        <div class="dia-kpi" id="pvkpi-2"><div class="dia-nome">Terça</div><div class="dia-valor" id="pvk-2">—</div><div class="dia-qtd" id="pvq-2"></div></div>
-        <div class="dia-kpi" id="pvkpi-3"><div class="dia-nome">Quarta</div><div class="dia-valor" id="pvk-3">—</div><div class="dia-qtd" id="pvq-3"></div></div>
-        <div class="dia-kpi" id="pvkpi-4"><div class="dia-nome">Quinta</div><div class="dia-valor" id="pvk-4">—</div><div class="dia-qtd" id="pvq-4"></div></div>
-        <div class="dia-kpi" id="pvkpi-5"><div class="dia-nome">Sexta</div><div class="dia-valor" id="pvk-5">—</div><div class="dia-qtd" id="pvq-5"></div></div>
-      </div>
-      <p class="chart-desc">Total previsto (R$) por dia útil de vencimento, com base na planilha de planejamento.</p>
-    </div>
-  </div>
-
   ${atrasados.length > 0 ? `
   <div class="atraso-section">
     <div class="atraso-header">
@@ -1278,7 +1261,6 @@ window.addEventListener('DOMContentLoaded', () => {
   gridApi = agGrid.createGrid(gridDiv, gridOptions);
 
   syncCharts(COLUNAS);
-  buildDiaSemanaPrevisChart('bar');
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayModal(); });
   document.getElementById('dayModal').addEventListener('click', e => {
     if (e.target === document.getElementById('dayModal')) closeDayModal();
@@ -1295,7 +1277,6 @@ function selectAll(check) {
 function aplicarColunas() {
   const selecionadas = [...document.querySelectorAll('#colChecks input:checked')].map(cb => cb.value);
   if (selecionadas.length === 0) { alert('Selecione ao menos uma coluna.'); return; }
-  activeColumns = selecionadas;
   gridApi.setGridOption('columnDefs', buildColDefs(selecionadas));
   syncCharts(selecionadas);
 }
@@ -1621,8 +1602,6 @@ function renderChart(id) {
       if (eq) eq.textContent = i === 0 ? (counts[0] + ' lançamento' + (counts[0] !== 1 ? 's' : '')) : (dates[i].length > 0 ? dates[i].join(', ') : '');
       if (card) card.classList.toggle('dia-maior', i !== 0 && i === maxIdx);
     });
-  } else if (id === 'chartDiaSemanaPrevis') {
-    buildDiaSemanaPrevisChart(currentChartTypes[id]);
   }
 }
 
@@ -1845,183 +1824,6 @@ function openDayDetail(dayIdx) {
 function closeDayModal() {
   document.getElementById('dayModal').classList.remove('open');
   document.body.style.overflow = '';
-}
-
-// ── Dia da Semana – Previsto ─────────────────────────────────────
-function buildDiaSemanaPrevisChart(type) {
-  const id = 'chartDiaSemanaPrevis';
-  const { labels, totals, counts, dates } = aggregateByWeekdayFrom(DADOS_PREVISTO, 'data_vencimento', 'valor');
-  const labelsRich = labels.map((d, i) => i === 0 ? d : (dates[i].length > 0 ? d + ' (' + dates[i].join(', ') + ')' : d));
-  const maxVal = Math.max(...totals.slice(1));
-  const bgColors = totals.map((v, i) => i === 0 ? '#dc2626cc' : (v === maxVal ? '#7c3aedcc' : '#94a3b870'));
-  const bdColors = totals.map((v, i) => i === 0 ? '#dc2626'   : (v === maxVal ? '#7c3aed'   : '#94a3b8'));
-  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
-  const ctx = document.getElementById(id);
-  if (ctx) {
-    const isRadar = type === 'radar';
-    const isPolar = type === 'polarArea';
-    const hasAxes = type === 'bar' || type === 'line';
-    let ds = { label: 'Previsto (R$)', data: totals };
-    if (isRadar) {
-      ds.backgroundColor = '#7c3aed35'; ds.borderColor = '#7c3aed';
-      ds.borderWidth = 2; ds.pointBackgroundColor = '#7c3aed'; ds.fill = true;
-    } else if (type === 'line') {
-      ds.backgroundColor = '#7c3aed20'; ds.borderColor = '#7c3aed';
-      ds.borderWidth = 3; ds.fill = true; ds.tension = 0.4;
-      ds.pointBackgroundColor = '#7c3aed'; ds.pointRadius = 5; ds.pointHoverRadius = 7;
-    } else {
-      ds.backgroundColor = bgColors; ds.borderColor = bdColors; ds.borderWidth = isPolar ? 1.5 : 0;
-    }
-    chartInstances[id] = new Chart(ctx.getContext('2d'), {
-      type,
-      data: { labels: labelsRich, datasets: [ds] },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        animation: { duration: 400 },
-        onClick: (evt, elements) => { if (elements.length > 0) openPrevDayDetail(elements[0].index); },
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => {
-            const v = c.parsed?.y ?? c.parsed?.r ?? c.raw ?? 0;
-            return ' ' + Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
-          }}}
-        },
-        scales: hasAxes ? {
-          x: { ticks: { color:'rgba(255,255,255,.7)', font:{ size:11, weight:'600' } }, grid: { color:'rgba(255,255,255,.08)' } },
-          y: { ticks: { color:'rgba(255,255,255,.6)', font:{size:11},
-            callback: v => 'R$ '+(v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v)
-          }, grid: { color:'rgba(255,255,255,.08)' } }
-        } : undefined
-      }
-    });
-    ctx.style.cursor = 'pointer';
-  }
-  // Atualiza mini-KPIs
-  const maxIdx = totals.slice(1).indexOf(maxVal) + 1;
-  totals.forEach((val, i) => {
-    const el = document.getElementById('pvk-'+i);
-    const eq = document.getElementById('pvq-'+i);
-    const card = document.getElementById('pvkpi-'+i);
-    if (el) el.textContent = val.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
-    if (eq) eq.textContent = i === 0 ? (counts[0] + ' lançamento' + (counts[0] !== 1 ? 's' : '')) : (dates[i].length > 0 ? dates[i].join(', ') : '');
-    if (card) card.classList.toggle('dia-maior', i !== 0 && i === maxIdx);
-  });
-}
-
-// ── Detalhe por Dia – Previsto ────────────────────────────────────
-let _weekdayDataPrev = null;
-function _ensureWeekdayDataPrev() {
-  if (!_weekdayDataPrev) _weekdayDataPrev = aggregateByWeekdayFrom(DADOS_PREVISTO, 'data_vencimento', 'valor');
-  return _weekdayDataPrev;
-}
-
-function openPrevDayDetail(dayIdx) {
-  const DAY_NAMES = ['⚠ Em Atraso (Previsto)', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-  const { totals, counts, dates } = _ensureWeekdayDataPrev();
-  const dayDates = dates[dayIdx];
-  const total    = totals[dayIdx];
-  const qtd      = counts[dayIdx];
-
-  let rows;
-  if (dayIdx === 0) {
-    const hojeRef = new Date(); hojeRef.setHours(0, 0, 0, 0);
-    rows = DADOS_PREVISTO.filter(r => {
-      const dv = r['data_vencimento'];
-      if (!dv || typeof dv !== 'string') return false;
-      const [dd, mm, yy] = dv.split('/').map(Number);
-      const date = new Date(yy, mm - 1, dd);
-      return date <= hojeRef && !(r['status'] || '').toUpperCase().includes('PAGO');
-    });
-  } else {
-    rows = DADOS_PREVISTO.filter(r => {
-      const dv = r['data_vencimento'];
-      return dv && dayDates.includes(dv);
-    });
-  }
-
-  if (rows.length === 0) return;
-
-  const porCat = {};
-  rows.forEach(r => {
-    const c = r['categoria'] || 'Sem categoria';
-    porCat[c] = (porCat[c] || 0) + (parseFloat(r['valor']) || 0);
-  });
-  const catEntries = Object.entries(porCat).sort((a,b) => b[1]-a[1]);
-  const maxCat = catEntries[0]?.[1] || 1;
-  const maiorVal = Math.max(...rows.map(r => parseFloat(r['valor']) || 0));
-  const fmtC = v => Number(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:2 });
-
-  let sortColPv = 'valor', sortDirPv = -1;
-  const TABLE_COLS = [
-    { key:'data_vencimento', label:'Vencimento' },
-    { key:'descricao',       label:'Descrição' },
-    { key:'categoria',       label:'Categoria' },
-    { key:'sub_categoria',   label:'Sub-Categoria' },
-    { key:'valor',           label:'Valor (R$)' },
-    { key:'status',          label:'Status' },
-    { key:'responsavel',     label:'Responsável' },
-    { key:'tipo_pagamento',  label:'Tipo Pgto' },
-    { key:'banco',           label:'Banco' },
-  ];
-
-  function buildTablePv(col, dir) {
-    const sorted = [...rows].sort((a,b) => {
-      let va = a[col], vb = b[col];
-      if (col === 'valor') { va = parseFloat(va)||0; vb = parseFloat(vb)||0; }
-      if (va < vb) return -dir; if (va > vb) return dir; return 0;
-    });
-    const thHTML = TABLE_COLS.map(c => {
-      let cls = '';
-      if (c.key === col) cls = dir === 1 ? ' sort-asc' : ' sort-desc';
-      return \`<th class="\${cls}" onclick="_sortPrevDayTable('\${c.key}')">\${c.label}</th>\`;
-    }).join('');
-    const tdRows = sorted.map(r => {
-      const v = parseFloat(r['valor']) || 0;
-      const st = (r['status'] || '').toLowerCase();
-      const badgeCls = st.includes('pago') ? 'pago' : st.includes('pend') ? 'pendente' : 'outro';
-      const tds = TABLE_COLS.map(c => {
-        if (c.key === 'valor') return \`<td class="td-valor">\${fmtC(v)}</td>\`;
-        if (c.key === 'status') return \`<td><span class="status-badge \${badgeCls}">\${r[c.key] || '—'}</span></td>\`;
-        return \`<td title="\${r[c.key] || ''}">\${r[c.key] || '—'}</td>\`;
-      }).join('');
-      return \`<tr>\${tds}</tr>\`;
-    }).join('');
-    return \`<table class="modal-table"><thead><tr>\${thHTML}</tr></thead><tbody>\${tdRows}</tbody></table>\`;
-  }
-
-  window._sortPrevDayTable = (col) => {
-    if (sortColPv === col) sortDirPv *= -1; else { sortColPv = col; sortDirPv = -1; }
-    document.querySelector('.modal-table-wrap').innerHTML = buildTablePv(sortColPv, sortDirPv);
-  };
-
-  const catBarsHTML = catEntries.map(([cat, val]) => \`
-    <div class="cat-bar-row">
-      <span class="cat-bar-label" title="\${cat}">\${cat}</span>
-      <div class="cat-bar-track"><div class="cat-bar-fill" style="width:\${Math.round(val/maxCat*100)}%"></div></div>
-      <span class="cat-bar-val">\${fmtC(val)}</span>
-    </div>\`).join('');
-
-  const content = \`
-    <h2 class="modal-title">📅 Previsto – \${DAY_NAMES[dayIdx]}</h2>
-    <div class="modal-dates">\${dayIdx === 0
-      ? qtd + ' lançamento' + (qtd !== 1 ? 's' : '') + ' previsto' + (qtd !== 1 ? 's' : '') + ' em atraso'
-      : 'Datas: ' + dayDates.join(' • ') + ' &nbsp;&middot;&nbsp; ' + qtd + ' lançamento' + (qtd !== 1 ? 's' : '')
-    }</div>
-    <div class="modal-kpis">
-      <div class="modal-kpi"><div class="mk-label">Total Previsto</div><div class="mk-value">\${fmtC(total)}</div></div>
-      <div class="modal-kpi"><div class="mk-label">Lançamentos</div><div class="mk-value">\${qtd}</div></div>
-      <div class="modal-kpi"><div class="mk-label">Categorias</div><div class="mk-value">\${catEntries.length}</div></div>
-      <div class="modal-kpi"><div class="mk-label">Maior Lançamento</div><div class="mk-value">\${fmtC(maiorVal)}</div></div>
-    </div>
-    <div class="modal-section-title">Distribuição por Categoria</div>
-    <div class="cat-bars">\${catBarsHTML}</div>
-    <div class="modal-section-title" style="margin-top:24px">Todos os Lançamentos</div>
-    <div class="modal-table-wrap">\${buildTablePv(sortColPv, sortDirPv)}</div>
-  \`;
-
-  document.getElementById('dayModalContent').innerHTML = content;
-  document.getElementById('dayModal').classList.add('open');
-  document.body.style.overflow = 'hidden';
 }
 
 // ── Previsto vs Realizado: gráfico agrupado ──────────────────────
